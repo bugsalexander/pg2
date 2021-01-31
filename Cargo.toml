@@ -7,5 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-diesel = { version = "1.4.4", features = ["postgres"] }
+diesel = { version = "1.4.4", features = ["postgres", "chrono"] }
+chrono = { version = "0.4.19", features = ["serde"] }
 dotenv = "0.15.0"
+serde = { version = "1.0.123", features = ["derive"] }
+serde_json = { version = "1.0.61" }
+fake = { version = "2.4.0", features = ["chrono", "derive"] }
+rand = "0.8.3"
+tokio = "1.1.1"
