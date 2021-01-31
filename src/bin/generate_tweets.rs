@@ -18,7 +18,7 @@ pub fn main() {
             tweet_id: n,
             tweet_ts: Faker.fake::<NaiveDateTime>(),
             user_id: (0..NUM_USERS).fake::<i64>(),
-            tweet_text: Sentence(1..20).fake(),
+            tweet_text: Sentence(1..10).fake(),
         };
         tweets.push(tw);
     }
