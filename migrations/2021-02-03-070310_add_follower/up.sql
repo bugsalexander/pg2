@@ -1,0 +1,6 @@
+-- Your SQL goes here
+
+CREATE TABLE IF NOT EXISTS follower (
+  user_id BIGINT PRIMARY KEY NOT NULL,
+  follows_id BIGINT PRIMARY KEY NOT NULL
+);

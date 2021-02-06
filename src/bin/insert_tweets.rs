@@ -1,38 +1,31 @@
-use pg2::{establish_connection_pool, insert_tweet, models::Tweet};
-use std::{error::Error, fs::File, io::Read, thread};
+use pg2::{establish_connection_pool, insert_tweet, read_tweets_from_file};
+use std::{time::Duration};
+use std::{error::Error, time::Instant};
+use tokio::{runtime};
 
-use tokio::{join, try_join};
-
-#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let mut file = File::open("tweets.json")?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let tweets: Vec<Tweet> = serde_json::from_str(&contents)?;
+fn main() -> Result<(), Box<dyn Error>> {
+    let runtime = runtime::Builder::new_multi_thread().build()?;
+    
+    let tweets = read_tweets_from_file()?;
 
     println!("inserting {} tweets!", tweets.len());
 
     let pool = establish_connection_pool();
 
-    // for tw in tweets {
-    //     let pool2 = pool.clone();
-    //     thread::spawn(move || {
-    //         let conn = pool2.get().unwrap();
-    //         insert_tweet(&conn, tw)
-    //     });
-    // }
+    // begin timer
+    let start = Instant::now();
 
-    let inserts = tweets.into_iter().map(|tw| {
+    for tw in tweets {
         let pool2 = pool.clone();
-        tokio::spawn(async move {
+        runtime.spawn_blocking(move || {
             let conn = pool2.get().unwrap();
             insert_tweet(&conn, tw);
-        })
-    });
-
-    for handle in inserts {
-        try_join!(handle)?;
+        });
     }
+
+    runtime.shutdown_timeout(Duration::from_secs(120));
+    
+    println!("inserting took {:#?}", start.elapsed());
 
     Ok(())
 }

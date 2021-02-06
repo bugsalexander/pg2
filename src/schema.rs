@@ -6,11 +6,9 @@ table! {
 }
 
 table! {
-    posts (id) {
-        id -> Int4,
-        title -> Varchar,
-        body -> Text,
-        published -> Bool,
+    follower_typeorm (user_id, follows_id) {
+        user_id -> Int8,
+        follows_id -> Int8,
     }
 }
 
@@ -23,8 +21,18 @@ table! {
     }
 }
 
+table! {
+    tweet_typeorm (tweet_id) {
+        tweet_ts -> Timestamp,
+        tweet_id -> Int8,
+        user_id -> Int8,
+        tweet_text -> Varchar,
+    }
+}
+
 allow_tables_to_appear_in_same_query!(
     follower,
-    posts,
+    follower_typeorm,
     tweet,
+    tweet_typeorm,
 );

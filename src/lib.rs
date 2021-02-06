@@ -5,16 +5,16 @@ pub mod schema;
 extern crate diesel;
 extern crate dotenv;
 
-use self::models::{NewPost, Post};
 use diesel::{pg::PgConnection, Connection, RunQueryDsl};
 // use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use dotenv::dotenv;
-use models::Tweet;
-use std::env;
+use models::{Tweet, Follower};
+use std::{env, io::Read, error::Error};
 
 pub const NUM_TWEETS: i64 = 1_000_000;
-pub const NUM_USERS: i64 = 200_000;
+pub const NUM_FOLLOWERS: i64 = 200_000;
+pub const NUM_USERS: i64 = 10_000;
 
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -31,22 +31,23 @@ pub fn establish_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
     Pool::builder().max_size(10).build(manager).unwrap()
 }
 
-pub fn create_post<'a>(conn: &PgConnection, title: &'a str, body: &'a str) -> Post {
-    use schema::posts;
-
-    let new_post = NewPost { title, body };
-
-    diesel::insert_into(posts::table)
-        .values(&new_post)
-        .get_result(conn)
-        .expect("Error saving new post")
-}
-
-pub fn insert_tweet<'a>(conn: &PgConnection, tw: Tweet) -> () {
+pub fn insert_tweet(conn: &PgConnection, tw: Tweet) -> () {
     use schema::tweet;
 
     diesel::insert_into(tweet::table)
         .values(&tw)
         .execute(conn)
         .expect("Error inserting tweet");
+}
+
+pub fn read_tweets_from_file() -> Result<Vec<Tweet>, Box<dyn Error>> {
+    let mut file = std::fs::File::open("tweets.json")?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let tweets: Vec<Tweet> = serde_json::from_str(&contents)?;
+    Ok(tweets)
+}
+
+pub fn insert_follower(conn: &PgConnection, fl: Follower) {
+    
 }
