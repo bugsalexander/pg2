@@ -1,6 +1,6 @@
-use pg2::{establish_connection_pool, insert_tweet, read_tweets_from_file};
-use rand::{Rng, rngs::SmallRng, thread_rng};
-use std::time::Duration;
+use pg2::{establish_connection_pool, query_timeline};
+use rand::{thread_rng, Rng};
+use std::{sync::{Arc, atomic::{AtomicU32, Ordering}}, time::Duration};
 use std::{error::Error, time::Instant};
 use tokio::runtime;
 
@@ -11,24 +11,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pool = establish_connection_pool();
 
-    // begin timer and rng
-    let end = Duration::from_secs(60);
-    let rng = thread_rng();
+    // begin timer and rng and counter
+    let counter = Arc::new(AtomicU32::new(0));
+    let duration = Duration::from_secs(60);
+    let mut rng = thread_rng();
+    let start = Instant::now();
 
-    unimplemented!();
-    
-    // while (Instant::now() < end) {
-    //     let pool2 = pool.clone();
-    //     let uid = rng.gen_range(0..20_000);
-    //     runtime.spawn_blocking(move || {
-    //         let conn = pool2.get().unwrap();
-    //         query_timeline(&conn);
-    //     });
-    // }
+    while Instant::now() - start < duration {
+        let pool2 = pool.clone();
+        let uid = rng.gen_range(0..20_000);
+        let counter_ref = counter.clone();
+        runtime.spawn_blocking(move || {
+            let conn = pool2.get().unwrap();
+            query_timeline(&conn, uid);
+            counter_ref.fetch_add(1, Ordering::Relaxed);
+        });
+    }
 
-    // runtime.shutdown_timeout(Duration::from_secs(120));
+    runtime.shutdown_timeout(Duration::from_secs(120));
 
-    // println!("inserting took {:#?}", );
+    println!("queried a total of {:#?} timelines in {:#?}!", counter, Instant::now() - start);
 
-    // Ok(())
+    Ok(())
 }
