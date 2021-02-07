@@ -1,7 +1,13 @@
 use pg2::{establish_connection_pool, query_timeline};
 use rand::{thread_rng, Rng};
-use std::{sync::{Arc, atomic::{AtomicU32, Ordering}}, time::Duration};
 use std::{error::Error, time::Instant};
+use std::{
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 use tokio::runtime;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -13,11 +19,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // begin timer and rng and counter
     let counter = Arc::new(AtomicU32::new(0));
-    let duration = Duration::from_secs(60);
     let mut rng = thread_rng();
     let start = Instant::now();
 
-    while Instant::now() - start < duration {
+    // generate 10,000 of them, and see how long it takes to finish
+    for _i in 0..10_000 {
         let pool2 = pool.clone();
         let uid = rng.gen_range(0..20_000);
         let counter_ref = counter.clone();
@@ -27,10 +33,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             counter_ref.fetch_add(1, Ordering::Relaxed);
         });
     }
+    
+    runtime.shutdown_timeout(Duration::from_secs(180));
 
-    runtime.shutdown_timeout(Duration::from_secs(120));
-
-    println!("queried a total of {:#?} timelines in {:#?}!", counter, Instant::now() - start);
+    println!(
+        "queried a total of {:#?} timelines in {:#?}!",
+        counter,
+        Instant::now() - start
+    );
 
     Ok(())
 }
