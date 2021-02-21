@@ -11,6 +11,12 @@ pub struct Tweet {
     pub tweet_text: String,
 }
 
+#[derive(Debug)]
+pub struct RedisTweet {
+    pub tweet_ts: NaiveDateTime,
+    pub tweet_text: String,
+}
+
 #[derive(Debug, Queryable, Insertable, Serialize, Deserialize)]
 #[table_name = "follower"]
 pub struct Follower {
