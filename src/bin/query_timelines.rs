@@ -1,4 +1,4 @@
-use pg2::{establish_connection_pool, query_timeline};
+use pg2::{establish_postgres_pool, query_timeline};
 use rand::{thread_rng, Rng};
 use std::{error::Error, time::Instant};
 use std::{
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("querying timelines!");
 
-    let pool = establish_connection_pool();
+    let pool = establish_postgres_pool();
 
     // begin timer and rng and counter
     let counter = Arc::new(AtomicU32::new(0));
