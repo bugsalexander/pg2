@@ -30,9 +30,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    follower,
-    follower_typeorm,
-    tweet,
-    tweet_typeorm,
-);
+allow_tables_to_appear_in_same_query!(follower, follower_typeorm, tweet, tweet_typeorm,);

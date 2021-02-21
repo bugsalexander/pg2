@@ -2,7 +2,7 @@ use std::io::Write;
 
 use chrono::NaiveDateTime;
 use fake::{faker::lorem::en::Sentence, Fake, Faker};
-use pg2::{NUM_TWEETS, NUM_USERS, models::Tweet};
+use pg2::{models::Tweet, NUM_TWEETS, NUM_USERS};
 use std::fs::File;
 
 pub fn main() {

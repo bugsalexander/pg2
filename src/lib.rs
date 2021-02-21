@@ -28,9 +28,11 @@ pub fn establish_postgres_pool() -> Pool<ConnectionManager<PgConnection>> {
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::builder().max_size(10)
-    .connection_timeout(Duration::from_secs(60))
-    .build(manager).unwrap()
+    Pool::builder()
+        .max_size(10)
+        .connection_timeout(Duration::from_secs(60))
+        .build(manager)
+        .unwrap()
 }
 
 pub fn establish_redis_pool() -> Pool<RedisConnectionManager> {
@@ -66,10 +68,35 @@ pub fn insert_redis_tweet_1(conn: &mut r2d2::PooledConnection<RedisConnectionMan
         .unwrap();
 }
 
-// kv modeling
+pub fn insert_redis_tweet_2(conn: &mut r2d2::PooledConnection<RedisConnectionManager>, tw: Tweet) {
+    // assume we are inserting in order of timestamp
+    // most recent tweets will be at the front of the list
+
+    // for each one of the people that follow, push to their home timeline
+    let users: HashSet<i64> = conn.smembers(follower_key(tw.user_id)).unwrap();
+
+    for follower_id in users.into_iter() {
+        let _: i32 = conn.lpush(user_key(follower_id), tw.tweet_id).unwrap();
+    }
+
+    // map from tweet id to tweet timestamp and text
+    let _1: bool = conn
+        .set(
+            tweet_key(tw.tweet_id),
+            format_tweet(tw.tweet_ts, tw.tweet_text),
+        )
+        .unwrap();
+}
+
+// kv modeling strategy 1
 // TWEET: t:tweet_id -> timestamp|text
 // TWEETER: u:uid -> [tweet_id]
 // FOLLOWERS: f:uid -> [uid]
+
+// kv modeling strategy 2
+// TWEET: t:tweet_id -> timestamp|text
+// TWEETER: f:uid -> [uid] (from user id to their followers)
+// FOLLOWERS: u:uid -> [tweet_id] (from user id to their timeline, sorted)
 
 pub fn insert_follower(conn: &PgConnection, fl: Follower) {
     use schema::follower;
@@ -86,6 +113,17 @@ pub fn insert_redis_follower_1(
 ) {
     let _: i32 = conn
         .sadd(follower_key(fl.user_id), fl.follows_id)
+        .expect("sadd failed!");
+}
+
+pub fn insert_redis_follower_2(
+    conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
+    fl: Follower,
+) {
+    // this time, map from tweeter id -> set<follower id>
+    // so when we broadcast, we broadcast tweet -> follower timelines
+    let _: i32 = conn
+        .sadd(follower_key(fl.follows_id), fl.user_id)
         .expect("sadd failed!");
 }
 
@@ -149,6 +187,21 @@ pub fn query_redis_timeline_1(
     // sort them, and return the last 10
     tweets.sort_by(|a, b| b.tweet_ts.cmp(&a.tweet_ts));
     tweets.truncate(10);
+}
+
+pub fn query_redis_timeline_2(
+    conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
+    user_id: i64,
+) {
+    // get all the tweets from the person, limit 10
+    let mut tids: Vec<i64> = conn.get(user_key(user_id)).unwrap();
+    tids.truncate(10);
+
+    let mut tweets = Vec::new();
+    for tid in tids {
+        let tweet_str: String = conn.get(tweet_key(tid)).unwrap();
+        tweets.push(parse_redis_tweet(tweet_str));
+    }
 }
 
 fn follower_key(uid: i64) -> String {

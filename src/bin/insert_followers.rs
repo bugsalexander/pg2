@@ -59,7 +59,7 @@ fn run_redis_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), B
     for fl in followers {
         let pool2 = pool.clone();
         runtime.spawn_blocking(move || {
-            let mut conn  = pool2.get().unwrap();
+            let mut conn = pool2.get().unwrap();
             insert_redis_follower_1(&mut conn, fl);
         });
     }
