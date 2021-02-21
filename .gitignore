@@ -4,3 +4,4 @@ submit*
 .DS_Store
 followers.json
 tweets.json
+*.rdb
