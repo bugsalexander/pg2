@@ -15,7 +15,7 @@ use diesel::{
 use dotenv::dotenv;
 use models::*;
 use r2d2_redis::{r2d2, redis::Commands, RedisConnectionManager};
-use std::{collections::HashSet, env, error::Error, io::Read};
+use std::{collections::HashSet, env, error::Error, io::Read, time::Duration};
 
 pub const NUM_TWEETS: i64 = 1_000_000;
 pub const NUM_FOLLOWERS: i64 = 200_000;
@@ -28,7 +28,9 @@ pub fn establish_postgres_pool() -> Pool<ConnectionManager<PgConnection>> {
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::builder().max_size(10).build(manager).unwrap()
+    Pool::builder().max_size(10)
+    .connection_timeout(Duration::from_secs(60))
+    .build(manager).unwrap()
 }
 
 pub fn establish_redis_pool() -> Pool<RedisConnectionManager> {
@@ -147,7 +149,6 @@ pub fn query_redis_timeline_1(
     // sort them, and return the last 10
     tweets.sort_by(|a, b| b.tweet_ts.cmp(&a.tweet_ts));
     tweets.truncate(10);
-    println!("{:#?}", tweets);
 }
 
 fn follower_key(uid: i64) -> String {

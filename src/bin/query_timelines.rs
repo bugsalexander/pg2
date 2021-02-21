@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         panic!("please provide either \"postgres\" or \"redis as mode argument\"");
     }
 
-    runtime.shutdown_timeout(Duration::from_secs(180));
+    runtime.shutdown_timeout(Duration::from_secs(60 * 10));
 
     println!(
         "queried a total of {:#?} timelines in {:#?}!",
