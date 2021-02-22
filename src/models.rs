@@ -11,7 +11,7 @@ pub struct Tweet {
     pub tweet_text: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct RedisTweet {
     pub tweet_ts: NaiveDateTime,
     pub tweet_text: String,

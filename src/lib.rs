@@ -164,7 +164,7 @@ pub fn query_timeline(conn: &PgConnection, user_id: i64) -> () {
 pub fn query_redis_timeline_1(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     user_id: i64,
-) {
+) -> Vec<RedisTweet> {
     // get all the uids the person follows
     // for each uid, query last 10 tweets
     // sort all the tweets by timestamp
@@ -187,14 +187,15 @@ pub fn query_redis_timeline_1(
     // sort them, and return the last 10
     tweets.sort_by(|a, b| b.tweet_ts.cmp(&a.tweet_ts));
     tweets.truncate(10);
+    tweets
 }
 
 pub fn query_redis_timeline_2(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     user_id: i64,
-) {
+) -> Vec<RedisTweet> {
     // get all the tweets from the person, limit 10
-    let mut tids: Vec<i64> = conn.get(user_key(user_id)).unwrap();
+    let mut tids: Vec<i64> = conn.lrange(user_key(user_id), 0, 9).unwrap();
     tids.truncate(10);
 
     let mut tweets = Vec::new();
@@ -202,6 +203,8 @@ pub fn query_redis_timeline_2(
         let tweet_str: String = conn.get(tweet_key(tid)).unwrap();
         tweets.push(parse_redis_tweet(tweet_str));
     }
+
+    tweets
 }
 
 fn follower_key(uid: i64) -> String {
@@ -228,4 +231,150 @@ fn parse_redis_tweet(tweet_str: String) -> RedisTweet {
             .unwrap(),
         tweet_text: parts.next().unwrap().to_string(),
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono;
+    use std::iter::FromIterator;
+
+    #[test]
+    fn test_redis_1() {
+        let pool = establish_redis_pool();
+        let mut pool2 = pool.get().unwrap();
+
+        insert_redis_follower_1(
+            &mut pool2,
+            Follower {
+                user_id: 1,
+                follows_id: 5,
+            },
+        );
+        insert_redis_follower_1(
+            &mut pool2,
+            Follower {
+                user_id: 2,
+                follows_id: 5,
+            },
+        );
+        insert_redis_follower_1(
+            &mut pool2,
+            Follower {
+                user_id: 3,
+                follows_id: 5,
+            },
+        );
+
+        // users 1, 2, 3 follow 5
+        let m_1: HashSet<i64> = pool2.smembers(follower_key(1)).unwrap();
+        assert_eq!(m_1.into_iter().collect::<Vec<i64>>(), vec![5]);
+
+        let m_2: HashSet<i64> = pool2.smembers(follower_key(2)).unwrap();
+        assert_eq!(m_2.into_iter().collect::<Vec<i64>>(), vec![5]);
+
+        let m_3: HashSet<i64> = pool2.smembers(follower_key(3)).unwrap();
+        assert_eq!(m_3.into_iter().collect::<Vec<i64>>(), vec![5]);
+
+        insert_redis_tweet_1(
+            &mut pool2,
+            Tweet {
+                user_id: 5,
+                tweet_id: 1000,
+                tweet_text: String::from("i love redis"),
+                tweet_ts: chrono::NaiveDate::from_ymd(2020, 02, 12).and_hms(0, 53, 53),
+            },
+        );
+
+        insert_redis_tweet_1(
+            &mut pool2,
+            Tweet {
+                user_id: 5,
+                tweet_id: 999,
+                tweet_text: String::from("ooga booga"),
+                tweet_ts: chrono::NaiveDate::from_ymd(2779, 12, 12).and_hms(0, 53, 53),
+            },
+        );
+
+        assert_eq!(
+            query_redis_timeline_1(&mut pool2, 1),
+            [
+                RedisTweet {
+                    tweet_text: String::from("ooga booga"),
+                    tweet_ts: chrono::NaiveDate::from_ymd(2779, 12, 12).and_hms(0, 53, 53),
+                },
+                RedisTweet {
+                    tweet_text: String::from("i love redis"),
+                    tweet_ts: chrono::NaiveDate::from_ymd(2020, 02, 12).and_hms(0, 53, 53),
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_redis_2() {
+        let pool = establish_redis_pool();
+        let mut pool2 = pool.get().unwrap();
+
+        insert_redis_follower_2(
+            &mut pool2,
+            Follower {
+                user_id: 1,
+                follows_id: 5,
+            },
+        );
+        insert_redis_follower_2(
+            &mut pool2,
+            Follower {
+                user_id: 2,
+                follows_id: 5,
+            },
+        );
+        insert_redis_follower_2(
+            &mut pool2,
+            Follower {
+                user_id: 3,
+                follows_id: 5,
+            },
+        );
+
+        // users 1, 2, 3 follow 5
+        let m_1: HashSet<i64> = pool2.smembers(follower_key(5)).unwrap();
+        let m_2: HashSet<i64> = HashSet::from_iter(vec![1i64, 2, 3].iter().cloned());
+        assert_eq!(m_1, m_2);
+
+        insert_redis_tweet_2(
+            &mut pool2,
+            Tweet {
+                user_id: 5,
+                tweet_id: 1000,
+                tweet_text: String::from("i love redis"),
+                tweet_ts: chrono::NaiveDate::from_ymd(2020, 02, 12).and_hms(0, 53, 53),
+            },
+        );
+
+        insert_redis_tweet_2(
+            &mut pool2,
+            Tweet {
+                user_id: 5,
+                tweet_id: 999,
+                tweet_text: String::from("ooga booga"),
+                tweet_ts: chrono::NaiveDate::from_ymd(2779, 12, 12).and_hms(0, 53, 53),
+            },
+        );
+
+        assert_eq!(
+            query_redis_timeline_2(&mut pool2, 1),
+            [
+                RedisTweet {
+                    tweet_text: String::from("ooga booga"),
+                    tweet_ts: chrono::NaiveDate::from_ymd(2779, 12, 12).and_hms(0, 53, 53),
+                },
+                RedisTweet {
+                    tweet_text: String::from("i love redis"),
+                    tweet_ts: chrono::NaiveDate::from_ymd(2020, 02, 12).and_hms(0, 53, 53),
+                }
+            ]
+        );
+    }
 }

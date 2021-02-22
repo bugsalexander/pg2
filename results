@@ -1,0 +1,10 @@
+strategy 1
+followers: 4.043s
+tweets: 30.23s 30.18 
+timelines: 10.785s
+543026 / 600s
+
+strategy 2:
+followers: 3.83s
+tweets: 39.2796s
+timelines: 1_000_000 / 112.92s

@@ -1,6 +1,6 @@
 use pg2::{
     deserialize_tweets, establish_postgres_pool, establish_redis_pool, insert_redis_tweet_1,
-    insert_tweet, models::Tweet,
+    insert_redis_tweet_2, insert_tweet, models::Tweet,
 };
 use std::{env, error::Error, time::Duration, time::Instant};
 use tokio::runtime::{self, Runtime};
@@ -23,7 +23,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mode: &str = _mode;
         match mode {
             "postgres" => run_postgres_insert(&runtime, tweets)?,
-            "redis" => run_redis_insert(&runtime, tweets)?,
+            "redis1" => run_redis_insert1(&runtime, tweets)?,
+            "redis2" => run_redis_insert2(&runtime, tweets)?,
             _ => panic!("please provide either \"postgres\" or \"redis as mode argument\""),
         }
     } else {
@@ -56,7 +57,7 @@ fn run_postgres_insert(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<
     Ok(())
 }
 
-fn run_redis_insert(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
+fn run_redis_insert1(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 
     for tw in tweets {
@@ -64,6 +65,20 @@ fn run_redis_insert(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn
         runtime.spawn_blocking(move || {
             let mut conn = pool2.get().unwrap();
             insert_redis_tweet_1(&mut conn, tw);
+        });
+    }
+
+    Ok(())
+}
+
+fn run_redis_insert2(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
+    let pool = establish_redis_pool();
+
+    for tw in tweets {
+        let pool2 = pool.clone();
+        runtime.spawn_blocking(move || {
+            let mut conn = pool2.get().unwrap();
+            insert_redis_tweet_2(&mut conn, tw);
         });
     }
 

@@ -1,7 +1,4 @@
-use pg2::{
-    deserialize_followers, establish_postgres_pool, establish_redis_pool, insert_follower,
-    insert_redis_follower_1, models::Follower,
-};
+use pg2::{deserialize_followers, establish_postgres_pool, establish_redis_pool, insert_follower, insert_redis_follower_1, insert_redis_follower_2, models::Follower};
 use std::{env, error::Error, time::Duration, time::Instant};
 use tokio::{runtime, runtime::Runtime};
 
@@ -23,7 +20,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mode: &str = _mode;
         match mode {
             "postgres" => run_postgres_insert(&runtime, followers)?,
-            "redis" => run_redis_insert(&runtime, followers)?,
+            "redis1" => run_redis_insert1(&runtime, followers)?,
+            "redis2" => run_redis_insert2(&runtime, followers)?,
             _ => panic!("please provide either \"postgres\" or \"redis as mode argument\""),
         }
     } else {
@@ -53,7 +51,7 @@ fn run_postgres_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<()
     Ok(())
 }
 
-fn run_redis_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
+fn run_redis_insert1(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 
     for fl in followers {
@@ -61,6 +59,20 @@ fn run_redis_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), B
         runtime.spawn_blocking(move || {
             let mut conn = pool2.get().unwrap();
             insert_redis_follower_1(&mut conn, fl);
+        });
+    }
+
+    Ok(())
+}
+
+fn run_redis_insert2(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
+    let pool = establish_redis_pool();
+
+    for fl in followers {
+        let pool2 = pool.clone();
+        runtime.spawn_blocking(move || {
+            let mut conn = pool2.get().unwrap();
+            insert_redis_follower_2(&mut conn, fl);
         });
     }
 
