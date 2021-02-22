@@ -1,7 +1,12 @@
-use pg2::{deserialize_followers, establish_postgres_pool, establish_redis_pool, insert_follower, insert_redis_follower_1, insert_redis_follower_2, models::Follower};
+use pg2::{
+    deserialize_followers, establish_postgres_pool, establish_redis_pool, insert_follower,
+    insert_redis_follower_1, insert_redis_follower_2, models::Follower,
+};
 use std::{env, error::Error, time::Duration, time::Instant};
 use tokio::{runtime, runtime::Runtime};
 
+/// main function to insert followers using the tokio runtime
+/// expects "postgres", "redis1", or "redis2" as a CLI argument
 fn main() -> Result<(), Box<dyn Error>> {
     let runtime = runtime::Builder::new_multi_thread().build()?;
     let args: Vec<String> = env::args().collect();
@@ -28,6 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         panic!("please provide either \"postgres\" or \"redis as mode argument\"");
     }
 
+    // wait at most 120 seconds for all threads to shut down
     runtime.shutdown_timeout(Duration::from_secs(120));
 
     println!("inserting took {:#?}", start.elapsed());
@@ -35,10 +41,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// todo: disclaimer for grader, i am learning rust and dont know how to abstract the following functions, please go easy on me
+
+/// insert tweets postgres mode
+/// for each follower, start a blocking thread that inserts the follower
 fn run_postgres_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
     let pool = establish_postgres_pool();
-
-    // 200_000 total followers
 
     for fl in followers {
         let pool2 = pool.clone();
@@ -51,6 +59,9 @@ fn run_postgres_insert(runtime: &Runtime, followers: Vec<Follower>) -> Result<()
     Ok(())
 }
 
+/// insert tweets redis mode, strategy 1
+/// for each follower, start a blocking thread that inserts the follower
+/// see readme for documentation on strategy
 fn run_redis_insert1(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 
@@ -65,6 +76,8 @@ fn run_redis_insert1(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), 
     Ok(())
 }
 
+/// insert tweets redis mode, strategy 2
+/// for each follower, start a blocking thread that inserts the follower
 fn run_redis_insert2(runtime: &Runtime, followers: Vec<Follower>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 

@@ -23,6 +23,7 @@ pub const NUM_USERS: i64 = 10_000;
 pub const FILE_TWEETS: &'static str = "tweets.json";
 pub const FILE_FOLLOWERS: &'static str = "followers.json";
 
+/// create a threadpool of connections to the database
 pub fn establish_postgres_pool() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
 
@@ -35,6 +36,7 @@ pub fn establish_postgres_pool() -> Pool<ConnectionManager<PgConnection>> {
         .unwrap()
 }
 
+/// create a threadpool of connections to redis
 pub fn establish_redis_pool() -> Pool<RedisConnectionManager> {
     dotenv().ok();
 
@@ -54,40 +56,6 @@ pub fn insert_tweet(conn: &PgConnection, tw: Tweet) -> () {
         .expect("Error inserting tweet");
 }
 
-pub fn insert_redis_tweet_1(conn: &mut r2d2::PooledConnection<RedisConnectionManager>, tw: Tweet) {
-    // assume we are inserting in order of timestamp
-    // most recent tweets will be at the front of the list
-    // map from user id to list of the tweet ids they have tweeted (in order)
-    let _: i32 = conn.lpush(user_key(tw.user_id), tw.tweet_id).unwrap();
-    // map from tweet id to tweet timestamp and text
-    let _1: bool = conn
-        .set(
-            tweet_key(tw.tweet_id),
-            format_tweet(tw.tweet_ts, tw.tweet_text),
-        )
-        .unwrap();
-}
-
-pub fn insert_redis_tweet_2(conn: &mut r2d2::PooledConnection<RedisConnectionManager>, tw: Tweet) {
-    // assume we are inserting in order of timestamp
-    // most recent tweets will be at the front of the list
-
-    // for each one of the people that follow, push to their home timeline
-    let users: HashSet<i64> = conn.smembers(follower_key(tw.user_id)).unwrap();
-
-    for follower_id in users.into_iter() {
-        let _: i32 = conn.lpush(user_key(follower_id), tw.tweet_id).unwrap();
-    }
-
-    // map from tweet id to tweet timestamp and text
-    let _1: bool = conn
-        .set(
-            tweet_key(tw.tweet_id),
-            format_tweet(tw.tweet_ts, tw.tweet_text),
-        )
-        .unwrap();
-}
-
 // kv modeling strategy 1
 // TWEET: t:tweet_id -> timestamp|text
 // TWEETER: u:uid -> [tweet_id]
@@ -98,6 +66,43 @@ pub fn insert_redis_tweet_2(conn: &mut r2d2::PooledConnection<RedisConnectionMan
 // TWEETER: f:uid -> [uid] (from user id to their followers)
 // FOLLOWERS: u:uid -> [tweet_id] (from user id to their timeline, sorted)
 
+/// insert a tweet into redis, using strategy 1 (see readme)
+pub fn insert_redis_tweet_1(conn: &mut r2d2::PooledConnection<RedisConnectionManager>, tw: Tweet) {
+    // assume we are inserting in order of timestamp
+    // most recent tweets will be at the front of the list
+    // need type annotations on results for redis-rs to figure out how to deserialize result
+
+    // user id -> list of the tweet ids they have tweeted (in order)
+    let _: i32 = conn.lpush(user_key(tw.user_id), tw.tweet_id).unwrap();
+    // tweet id -> tweet timestamp and text
+    let _1: bool = conn
+        .set(
+            tweet_key(tw.tweet_id),
+            format_tweet(tw.tweet_ts, tw.tweet_text),
+        )
+        .unwrap();
+}
+
+/// insert tweets into redis using strategy 2
+pub fn insert_redis_tweet_2(conn: &mut r2d2::PooledConnection<RedisConnectionManager>, tw: Tweet) {
+    // assume we are inserting in order of timestamp
+    // therefore, most recent tweets will be at the front of the list of the user's tweets
+
+    // for each one of the people that follow user who tweeted, push tweet id to their home timeline
+    let users: HashSet<i64> = conn.smembers(follower_key(tw.user_id)).unwrap();
+    for follower_id in users.into_iter() {
+        let _: i32 = conn.lpush(user_key(follower_id), tw.tweet_id).unwrap();
+    }
+
+    // insert tweet id -> tweet timestamp and text
+    let _1: bool = conn
+        .set(
+            tweet_key(tw.tweet_id),
+            format_tweet(tw.tweet_ts, tw.tweet_text),
+        )
+        .unwrap();
+}
+
 pub fn insert_follower(conn: &PgConnection, fl: Follower) {
     use schema::follower;
 
@@ -107,6 +112,8 @@ pub fn insert_follower(conn: &PgConnection, fl: Follower) {
         .expect("Error inserting follower");
 }
 
+/// insert a redis follower
+/// for strategy 1, each follower maps to a set of the user ids they follow
 pub fn insert_redis_follower_1(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     fl: Follower,
@@ -116,6 +123,9 @@ pub fn insert_redis_follower_1(
         .expect("sadd failed!");
 }
 
+/// insert a redis follower, strategy 2
+/// for strategy 2, each tweeter id maps to a list of their followers
+/// this is so that later we can do broadcasting to home timelines
 pub fn insert_redis_follower_2(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     fl: Follower,
@@ -161,6 +171,12 @@ pub fn query_timeline(conn: &PgConnection, user_id: i64) -> () {
     .expect("Error querying timeline");
 }
 
+/// query a timeline with redis, using strategy 1
+/// general strategy is
+/// 1. find users i follow
+/// 2. get their tweets
+/// 3. sort their tweets
+/// 4. return the most recent 10
 pub fn query_redis_timeline_1(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     user_id: i64,
@@ -190,6 +206,11 @@ pub fn query_redis_timeline_1(
     tweets
 }
 
+/// query a timeline with redis, using strategy 2
+/// general strategy is
+/// 1. grab my home timeline
+/// 2. limit to 10 most recent
+/// 3. get all the tweets
 pub fn query_redis_timeline_2(
     conn: &mut r2d2::PooledConnection<RedisConnectionManager>,
     user_id: i64,
@@ -207,22 +228,32 @@ pub fn query_redis_timeline_2(
     tweets
 }
 
+/// create a unique key for follower id
+/// for strategy 1, this key maps from user id to the user ids they follow
+/// for strategy 2, this key maps from tweeter id to the user ids of their followers
 fn follower_key(uid: i64) -> String {
     format!("f:{}", uid)
 }
 
+/// create a unique key for tweet id
+/// maps from tweet id to tweet string (timestamp|tweet_text)
 fn tweet_key(tid: i64) -> String {
     format!("t:{}", tid)
 }
 
+/// create a unique key for user id
+/// for strategy 1, maps from user id -> tweet ids they have tweeted
+/// for strategy 2, maps from user id -> tweet ids of their home timeline
 fn user_key(uid: i64) -> String {
     format!("u:{}", uid)
 }
 
+/// creates a string of a tweet to store as a value in redis
 fn format_tweet(tweet_ts: NaiveDateTime, tweet_text: String) -> String {
     format!("{}|{}", tweet_ts, tweet_text)
 }
 
+/// parses the result of format_tweet back into a RedisTweet struct
 fn parse_redis_tweet(tweet_str: String) -> RedisTweet {
     let mut parts = tweet_str.split("|");
 
@@ -233,6 +264,8 @@ fn parse_redis_tweet(tweet_str: String) -> RedisTweet {
     };
 }
 
+/// some sanity tests. note that the tests can only be run one at a time,
+/// and redis should be flushed before running each one
 #[cfg(test)]
 mod tests {
     use super::*;

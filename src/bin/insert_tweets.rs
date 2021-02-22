@@ -5,12 +5,15 @@ use pg2::{
 use std::{env, error::Error, time::Duration, time::Instant};
 use tokio::runtime::{self, Runtime};
 
+/// main function that inserts tweets
+/// assumes the followers have already been inserted, if using redis mode
+/// expects CLI arg either "postgres", "redis1", or "redis2"
 fn main() -> Result<(), Box<dyn Error>> {
     let runtime = runtime::Builder::new_multi_thread().build()?;
     let args: Vec<String> = env::args().collect();
     let mut tweets = deserialize_tweets()?;
 
-    // sort the tweets in order of timestamp
+    // sort the tweets in order of timestamp, so we insert in chronological order
     tweets.sort_by(|a, b| a.tweet_ts.cmp(&b.tweet_ts));
 
     let count: u64 = tweets.len() as u64;
@@ -19,6 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // begin timer
     let start = Instant::now();
 
+    // depending on the specified strategy, call different functions
     if let Some(_mode) = args.get(1) {
         let mode: &str = _mode;
         match mode {
@@ -43,6 +47,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// insert tweets, postgres style
+/// follows the same idea as inserting followers, create a new thread for each tweet to insert
 fn run_postgres_insert(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
     let pool = establish_postgres_pool();
 
@@ -57,6 +63,8 @@ fn run_postgres_insert(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<
     Ok(())
 }
 
+/// insert tweets redis style, strategy 1
+/// see documentation in readme for strategy details
 fn run_redis_insert1(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 
@@ -71,6 +79,7 @@ fn run_redis_insert1(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dy
     Ok(())
 }
 
+/// insert tweets redis style, strategy 2
 fn run_redis_insert2(runtime: &Runtime, tweets: Vec<Tweet>) -> Result<(), Box<dyn Error>> {
     let pool = establish_redis_pool();
 
