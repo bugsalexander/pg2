@@ -66,7 +66,7 @@ fn query_redis_timelines_1(runtime: &Runtime, rng: &mut ThreadRng, counter: &Arc
     let pool = establish_redis_pool();
 
     // generate 10,000 of them, and see how long it takes to finish
-    for _i in 0..1_000_000 {
+    for _i in 0..250_000 {
         let pool2 = pool.clone();
         let uid = rng.gen_range(0..NUM_USERS);
         let counter_ref = counter.clone();
