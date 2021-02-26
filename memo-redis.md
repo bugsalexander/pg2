@@ -1,9 +1,3 @@
-# Assignment 2: Twitter in Redis
-
-DS 4300 - Prof. Rachlin
-Alexander Takayama
-Feb 21, 2020
-
 ### Modeling Strategy
 
 For strategy 1, I modeled my data in redis in the following manner:
