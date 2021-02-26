@@ -1,13 +1,3 @@
-# Assignment 1: Twitter - The Early Years
-
-DS 4300 - Prof. Rachlin
-Alexander Takayama
-Feb 6, 2020
-
-### Intro
-
-For this homework, I wanted to challeng myself to see how high I could get my stats. I was interested in learning Rust, on top of it being a pretty performant language, I decided to go with it for my implementation.
-
 ### Benchmark Results
 
 ```
@@ -47,7 +37,5 @@ For generating tweets, I used a library called Faker to generate fake data. Each
 
 ### Wrapup
 
-Overall, I had a lot of fun with this project, and thoroughly enjoyed seeing just how fast I could get my code to Run!
-
-Sidenote: I actually implemented everything twice: first in Typescript (Javascript), and second in Rust. My Typescript stats were ~3.5k for inserts/sec, and ~20 for timelines/sec. I thought it was cool to see that my stats for TS were about 1/4 my stats for Rust, because being a single-threaded language, it makes sense that Rust was 4x faster, because
+Before I implemented this in Rust, I first wrote it in Typescript (Javascript). My Typescript stats were ~3.5k for inserts/sec, and ~20 for timelines/sec. I thought it was cool to see that my stats for TS were about 1/4 my stats for Rust, because being a single-threaded language, it makes sense that Rust was 4x faster, because
 it was able to take advantage of all 4 cores!
